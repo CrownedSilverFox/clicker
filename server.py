@@ -59,6 +59,8 @@ class Game:
         """
         if player in self.players_not_logged:
             self.players_not_logged.remove(player)
+        global log
+        log += 'player disconnected\n'
 
     def save(self):
         with open('data.json', 'w') as f:
