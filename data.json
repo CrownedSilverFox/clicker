@@ -1,8 +1,1 @@
-{"players": {
-  "test": {
-    "password": "0000",
-    "clicks": 0,
-    "multiplier": 1
-  }},
-  "global_num": 1000
-}
+{"global_num": 1000, "players": {"test": {"clicks": 0, "password": "0000", "multiplier": 1}}}

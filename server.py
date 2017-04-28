@@ -11,12 +11,15 @@ class Game:
     def __init__(self):
         self.global_num = None
         self.players = {}
-        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
+        self.players_logins = {}
+        self.players_not_logged = []
+        tornado.ioloop.IOLoop.instance().call_later(600, self.save)
+        self.load_data()
 
     def load_data(self):
-        with open('data') as f:
+        with open('data.json') as f:
             data = json.load(f)
-            self.players = data["players"]
+            self.players_logins = data["players"]
             self.global_num = data["global_num"]
 
     def _send_all(self, json, exclude=None):
@@ -25,48 +28,47 @@ class Game:
                 continue
             player.write_message(json)
 
-    def received_message(self, team, message):
+    def received_message(self, player, message):
         if message["key"] == "register":
-
+            self.register(player, message['login'], message['password'])
+        if message['key'] == 'login':
+            self.login(player, message['login'], message['password'])
         if message['key'] == 'click':
-            self.answering(message, team)
+            self.global_num += 1*self.players[player]['multiplier']
+            self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}))
 
     def connect(self, player):
         """
         Подключение игрока
         """
-        self.players.append(player)
-        # Отправка цвета команды
-        team.write_message({'key': 'global_num', 'num': self.global_num})
+        self.players_not_logged.append(player)
+        player.write_message({'key': 'connect'})
 
-    def disconnect(self, team):
+    def disconnect(self, player):
         """
         Отключение игрока
         """
-        self.players.remove(team)
-        if self._state == REGISTER:
-            self._send_all({"key": "register", "connected_teams": [team.color for team in self.players]})
-        if not self.players:
-            self.state = REGISTER
-            self.reload()
+        if player in self.players_not_logged:
+            self.players_not_logged.remove(player)
 
     def save(self):
-        pass
+        with open('data.json', 'w') as f:
+            f.write(json.dumps({'players': self.players_logins, 'global_num': self.global_num}))
+        tornado.ioloop.IOLoop.instance().call_later(600, self.save)
 
+    def register(self, player_wsh, login, password):
+        self.players_not_logged.remove(player_wsh)
+        if login in list(self.players_logins.keys()):
+            player_wsh.write_message(json.dumps({'key': 'error', 'type': 'this user already exists'}))
+            return
+        player = {'login': login, 'password': password, 'clicks': 0, 'multiplier': 1}
+        self.players[player_wsh] = player
+        self.players_logins[login] = {'password': password, 'clicks': 0, 'multiplier': 1}
 
-class Team:
-    team_colors = TEAM_COLORS[:2]
-
-    def __init__(self):
-        if not self.team_colors:
-            raise ValueError("Game Full")
-        self.color = self.team_colors.pop(0)
-
-    def on_delete(self):
-        self.team_colors.insert(0, self.color)
-
-    def __repr__(self):
-        return "Team {}".format(self.color)
+    def login(self, player_wsh, login, password):
+        if login in list(self.players_logins.keys()) and (self.players_logins[login]['password'] == password):
+            self.players[player_wsh] = {'login': login, 'password': password, 'clicks': self.players[login]['clicks'],
+                                        'multiplier': self.players[login]['multiplier']}
 
 
 class Application(tornado.web.Application):
@@ -79,7 +81,7 @@ class Application(tornado.web.Application):
         tornado.web.Application.__init__(self, handlers)
 
 
-class WSHandler(tornado.websocket.WebSocketHandler, Team):
+class WSHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         self.application.game.connect(self)
 
@@ -92,7 +94,6 @@ class WSHandler(tornado.websocket.WebSocketHandler, Team):
         print("close connection", self)
         if self.application.game.teams:
             self.application.game.disconnect(self)
-        self.on_delete()
 
     def check_origin(self, origin):
         return True
