@@ -6,6 +6,8 @@ import tornado.web
 import socket
 import json
 
+log = ''
+
 
 class Game:
     def __init__(self):
@@ -13,7 +15,7 @@ class Game:
         self.players = {}
         self.players_logins = {}
         self.players_not_logged = []
-        tornado.ioloop.IOLoop.instance().call_later(600, self.save)
+        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
         self.load_data()
 
     def load_data(self):
@@ -29,6 +31,8 @@ class Game:
             player.write_message(json)
 
     def received_message(self, player, message):
+        global log
+        log += json.dumps(message) + '\n'
         if message["key"] == "register":
             self.register(player, message['login'], message['password'])
         if message['key'] == 'login':
@@ -45,7 +49,9 @@ class Game:
         Подключение игрока
         """
         self.players_not_logged.append(player)
-        player.write_message({'key': 'connect'})
+        player.write_message({'key': 'connect', 'message': 'successfully connected'})
+        global log
+        log += 'player connected\n'
 
     def disconnect(self, player):
         """
@@ -57,7 +63,9 @@ class Game:
     def save(self):
         with open('data.json', 'w') as f:
             f.write(json.dumps({'players': self.players_logins, 'global_num': self.global_num}))
-        tornado.ioloop.IOLoop.instance().call_later(600, self.save)
+        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
+        with open('log.txt', 'w') as f:
+            f.write(log)
 
     def register(self, player_wsh, login, password):
         self.players_not_logged.remove(player_wsh)
@@ -107,8 +115,12 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 application = Application()
 
 if __name__ == "__main__":
-    http_server = tornado.httpserver.HTTPServer(application)
-    http_server.listen(8889)
-    myIP = socket.gethostbyname(socket.gethostname())
-    print('*** Websocket Server Started at %s***' % myIP)
-    tornado.ioloop.IOLoop.instance().start()
+    try:
+        http_server = tornado.httpserver.HTTPServer(application)
+        http_server.listen(8889)
+        myIP = socket.gethostbyname(socket.gethostname())
+        print('*** Websocket Server Started at %s***' % myIP)
+        tornado.ioloop.IOLoop.instance().start()
+    except:
+        with open('log.txt', 'w') as f:
+            f.write(log)
