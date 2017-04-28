@@ -34,6 +34,9 @@ class Game:
         if message['key'] == 'login':
             self.login(player, message['login'], message['password'])
         if message['key'] == 'click':
+            if not (player in self.players):
+                player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
+                return
             self.global_num += 1*self.players[player]['multiplier']
             self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}))
 
@@ -64,11 +67,13 @@ class Game:
         player = {'login': login, 'password': password, 'clicks': 0, 'multiplier': 1}
         self.players[player_wsh] = player
         self.players_logins[login] = {'password': password, 'clicks': 0, 'multiplier': 1}
+        player_wsh.write_message(json.dumps({'key': 'register', 'message': 'successfully registered'}))
 
     def login(self, player_wsh, login, password):
         if login in list(self.players_logins.keys()) and (self.players_logins[login]['password'] == password):
             self.players[player_wsh] = {'login': login, 'password': password, 'clicks': self.players[login]['clicks'],
                                         'multiplier': self.players[login]['multiplier']}
+        player_wsh.write_message(json.dumps({'key': 'login', 'message': 'successfully logged in'}))
 
 
 class Application(tornado.web.Application):
