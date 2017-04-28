@@ -106,8 +106,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         self.application.game.received_message(self, message)
 
     def on_close(self):
-        print("close connection", self)
-        if self.application.game.teams:
+        if self.application.game.players:
             self.application.game.disconnect(self)
 
     def check_origin(self, origin):
