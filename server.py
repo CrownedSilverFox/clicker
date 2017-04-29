@@ -98,7 +98,7 @@ class Game:
         :param password: отправленный с запросом на регистрацию игроком пароль. 
         """
         self.players_not_logged.remove(player_wsh)
-        if login in list(self.players_logins.keys()):
+        if not (login in list(self.players_logins.keys())):
             player_wsh.write_message(json.dumps({'key': 'error', 'type': 'this user already exists'}))
             return
         player = {'login': login, 'password': password, 'clicks': 0, 'multiplier': 1}
@@ -113,7 +113,7 @@ class Game:
         :param login: логин игрока.
         :param password: пароль игрока.
         """
-        if login in list(self.players_logins.keys()) and (self.players_logins[login]['password'] == password):
+        if (login in list(self.players_logins.keys())) and (self.players_logins[login]['password'] == password):
             self.players[player_wsh] = {'login': login, 'password': password, 'clicks': self.players[login]['clicks'],
                                         'multiplier': self.players[login]['multiplier']}
         else:
