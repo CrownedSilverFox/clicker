@@ -115,7 +115,7 @@ class Game:
         """
         if (login in list(self.players_logins.keys())) and (self.players_logins[login]['password'] == password):
             self.players[player_wsh] = {'login': login, 'password': password, 'clicks': self.players_logins[login]['clicks'],
-                                        'multiplier': self.players[login]['multiplier']}
+                                        'multiplier': self.players_logins[login]['multiplier']}
         else:
             player_wsh.write_message(json.dumps({'key': 'error', 'type': 'wrong login or password'}))
             return
