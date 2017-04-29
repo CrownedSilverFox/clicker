@@ -1,0 +1,18 @@
+Запрос:
+    connect
+Ответ:
+    {"key": "success", "type": "connect"}
+Запрос:
+    {"key": "register", "login": логин, "password": пароль}
+Ответ:
+    {"key": "success", "type": "register"}
+    или {'key': 'error', 'type': 'this user already exists'}
+Запрос:
+    {"key": "login", "login": логин, "password": пароль}
+Ответ:
+    {'key': 'success', 'type': 'login'}
+    или {'key': 'error', 'type': 'wrong login or password'}
+Запрос:
+    {"key": "click"}
+Ответ:
+    {'key': 'GN', 'GN': глобальное число оставшихся кликов}, отсылается всем подключенным игрокам.
