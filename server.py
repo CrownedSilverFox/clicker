@@ -53,10 +53,10 @@ class Game:
         if message['key'] == 'login':
             self.login(player, message['login'], message['password'])
         if message['key'] == 'click':
-            if not (player in self.players):
+            if not (player in self.players.keys()):
                 player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
                 return
-            self.global_num += 1*self.players[player]['multiplier']
+            self.global_num -= 1*self.players[player]['multiplier']
             self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}))
 
     def connect(self, player):
