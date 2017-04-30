@@ -76,6 +76,7 @@ class Game:
         """
         if player in self.players_not_logged:
             self.players_not_logged.remove(player)
+        self.players.pop(player)
         global log
         log += 'player disconnected\n'
 
