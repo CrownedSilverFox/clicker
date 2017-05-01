@@ -58,6 +58,7 @@ class Game:
                 return
             self.global_num -= 1*self.players[player]['multiplier']
             self.players[player]['clicks'] += 1*self.players[player]['multiplier']
+            self.players_logins[self.players[player]['login']]['clicks'] += 1*self.players[player]['multiplier']
             self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}))
 
     def connect(self, player):
