@@ -57,6 +57,7 @@ class Game:
                 player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
                 return
             self.global_num -= 1*self.players[player]['multiplier']
+            self.players[player]['clicks'] += 1*self.players[player]['multiplier']
             self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}))
 
     def connect(self, player):
@@ -105,7 +106,7 @@ class Game:
         player = {'login': login, 'password': password, 'clicks': 0, 'multiplier': 1}
         self.players[player_wsh] = player
         self.players_logins[login] = {'password': password, 'clicks': 0, 'multiplier': 1}
-        player_wsh.write_message(json.dumps({'key': 'success', 'type': 'register', 'GN': self.global_num}))
+        player_wsh.write_message(json.dumps({'key': 'success', 'type': 'register', 'GN': self.global_num, 'clicks': 0}))
 
     def login(self, player_wsh, login, password):
         """
@@ -120,7 +121,8 @@ class Game:
         else:
             player_wsh.write_message(json.dumps({'key': 'error', 'type': 'wrong login or password'}))
             return
-        player_wsh.write_message(json.dumps({'key': 'success', 'type': 'login', 'GN': self.global_num}))
+        player_wsh.write_message(json.dumps({'key': 'success', 'type': 'login', 'GN': self.global_num,
+                                             'clicks': self.players[player_wsh]}))
 
 
 class Application(tornado.web.Application):
