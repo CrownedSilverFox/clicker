@@ -48,8 +48,18 @@ class Game:
                 return
             self.global_num -= 1*self.players[player]['multiplier']
             self.players[player]['clicks'] += 1*self.players[player]['multiplier']
+            if (self.db.players.find_one({'rank_place': self.players[player]['rank_place'] - 1})) \
+                    and self.players[player]['clicks'] > self.db.players.find_one(
+                        {'rank_place': self.players[player]['rank_place'] - 1})['clicks']:
+                self.db.players.update(
+                    {'rank_place': self.players[player]['rank_place'] - 1},
+                    {'$set': {'rank_place': self.players[player]['rank_place']}})
+                self.players[player]['rank_place'] -= 1
+                self.db.players.update({'login': self.players[player]['login']},
+                                       {'$set': {'rank_place': self.players[player]['rank_place']}})
             player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
-                                             'clicks': self.players[player]['clicks']}))
+                                             'clicks': self.players[player]['clicks'],
+                                             'rank_place': self.players[player]['rank_place']}))
             self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
 
     def connect(self, player):
@@ -69,7 +79,8 @@ class Game:
         """
         if player in self.players_not_logged:
             self.players_not_logged.remove(player)
-        self.db.players.update({'login': self.players[player]['login']}, {'clicks': self.players[player]['clicks']})
+        self.db.players.update({'login': self.players[player]['login']},
+                               {'$set':  {'clicks': self.players[player]['clicks']}})
         self.players.pop(player)
         global log
         log += 'player disconnected\n'
@@ -101,7 +112,9 @@ class Game:
         with open('log.txt', 'w') as f:
             f.write(log)
         for player in self.players.keys():
-            self.db.players.update({'login': self.players[player]['login']}, {'clicks': self.players[player]['clicks']})
+            self.db.players.update({'login': self.players[player]['login']},
+                                   {'$set': {'clicks': self.players[player]['clicks']}})
+        self.db.gn.update({}, {'$set': {'GN': self.global_num}})
 
 
 class Application(tornado.web.Application):
