@@ -15,11 +15,11 @@ class Game:
         """
         Специализированный класс для работы с игровой сессией кликера. 'Мозг' сервера. Примитив, но рабочий.
         """
-        self.global_num = None
-        self.players = {}
-        self.players_not_logged = []
         connection = pymongo.MongoClient()
         self.db = connection.game
+        self.global_num = self.db.gn.find_one({}, {'_id': 0})['GN']
+        self.players = {}
+        self.players_not_logged = []
         # Через определённый промежуток времени запускает функцию из второго аргумента.
         tornado.ioloop.IOLoop.instance().call_later(600, self.save)
 
@@ -92,7 +92,7 @@ class Game:
         """
         Загружает информацию об игроке из БД.
         """
-        player = json.dumps(self.db.players.find_one({'login': login}, {'_id': 0}))
+        player = self.db.players.find_one({'login': login}, {'_id': 0})
         self.players[player_wsh] = player
         player_wsh.write_message(json.dumps({'key': 'success', 'type': 'login', 'GN': self.global_num,
                                              'clicks': self.players[player_wsh]['clicks']}))
