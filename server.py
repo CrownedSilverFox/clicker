@@ -5,6 +5,7 @@ import tornado.ioloop
 import tornado.web
 import socket
 import json
+import pymongo
 
 log = ''
 
@@ -16,22 +17,11 @@ class Game:
         """
         self.global_num = None
         self.players = {}
-        self.players_logins = {}
         self.players_not_logged = []
-        # Через определённый промежуток времени запускает функцию из второго аргумента. Сохранение данных, костыль,
-        # здесь также нужна БД.
-        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
-        self.load_data()
-
-    def load_data(self):
-        """
-        Загружает информацию из файла.
-        """
-        # TODO: подключить БД и избавиться от этого костыля.
-        with open('data.json') as f:
-            data = json.load(f)
-            self.players_logins = data["players"]
-            self.global_num = data["global_num"]
+        connection = pymongo.MongoClient()
+        self.db = connection.game
+        # Через определённый промежуток времени запускает функцию из второго аргумента.
+        tornado.ioloop.IOLoop.instance().call_later(600, self.save)
 
     def _send_all(self, json, exclude=None):
         # рассылка сообщений всем игрокам.
@@ -49,16 +39,15 @@ class Game:
         global log
         log += json.dumps(message) + '\n'
         if message["key"] == "register":
-            self.register(player, message['login'], message['password'])
+            self.register(player, message['login'])
         if message['key'] == 'login':
-            self.login(player, message['login'], message['password'])
+            self.login(player, message['login'])
         if message['key'] == 'click':
             if not (player in self.players.keys()):
                 player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
                 return
             self.global_num -= 1*self.players[player]['multiplier']
             self.players[player]['clicks'] += 1*self.players[player]['multiplier']
-            self.players_logins[self.players[player]['login']]['clicks'] += 1*self.players[player]['multiplier']
             player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
                                              'clicks': self.players[player]['clicks']}))
             self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
@@ -80,52 +69,39 @@ class Game:
         """
         if player in self.players_not_logged:
             self.players_not_logged.remove(player)
+        self.db.players.update({'login': self.players[player]['login']}, {'clicks': self.players[player]['clicks']})
         self.players.pop(player)
         global log
         log += 'player disconnected\n'
 
-    def save(self):
-        """
-        Сохраняет данные сессии, пишет лог.
-        """
-        # TODO: подключить БД, выдернуть лог в отдельный метод.
-        with open('data.json', 'w') as f:
-            f.write(json.dumps({'players': self.players_logins, 'global_num': self.global_num}))
-        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
-        with open('log.txt', 'w') as f:
-            f.write(log)
-
-    def register(self, player_wsh, login, password):
+    def register(self, player_wsh, login):
         """
         Регистрирует игрока в системе. Если уже есть пользователь с таким логином, возвращает игроку сообщение с ошибкой
         :param player_wsh: WS игрока
         :param login: отправленный с запросом на регистрацию игроком логин.
-        :param password: отправленный с запросом на регистрацию игроком пароль. 
         """
         self.players_not_logged.remove(player_wsh)
-        if not (login in list(self.players_logins.keys())):
+        if self.db.players.find_one({'login': login}) != 'null':
             player_wsh.write_message(json.dumps({'key': 'error', 'type': 'this user already exists'}))
             return
-        player = {'login': login, 'password': password, 'clicks': 0, 'multiplier': 1}
+        player = {'login': login, 'clicks': 0, 'multiplier': 1}
         self.players[player_wsh] = player
-        self.players_logins[login] = {'password': password, 'clicks': 0, 'multiplier': 1}
         player_wsh.write_message(json.dumps({'key': 'success', 'type': 'register', 'GN': self.global_num, 'clicks': 0}))
 
-    def login(self, player_wsh, login, password):
+    def login(self, player_wsh, login):
         """
-        Авторизует игрока в системе. Если что-то не совпало, отправляет сообщение с ошибкой.
-        :param player_wsh: WS игрока
-        :param login: логин игрока.
-        :param password: пароль игрока.
+        Загружает информацию об игроке из БД.
         """
-        if (login in list(self.players_logins.keys())) and (self.players_logins[login]['password'] == password):
-            self.players[player_wsh] = {'login': login, 'password': password, 'clicks': self.players_logins[login]['clicks'],
-                                        'multiplier': self.players_logins[login]['multiplier']}
-        else:
-            player_wsh.write_message(json.dumps({'key': 'error', 'type': 'wrong login or password'}))
-            return
+        player = json.dumps(self.db.players.find_one({'login': login}, {'_id': 0}))
+        self.players[player_wsh] = player
         player_wsh.write_message(json.dumps({'key': 'success', 'type': 'login', 'GN': self.global_num,
                                              'clicks': self.players[player_wsh]['clicks']}))
+
+    def save(self):
+        with open('log.txt', 'w') as f:
+            f.write(log)
+        for player in self.players.keys():
+            self.db.players.update({'login': self.players[player]['login']}, {'clicks': self.players[player]['clicks']})
 
 
 class Application(tornado.web.Application):
