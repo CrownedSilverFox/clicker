@@ -116,6 +116,7 @@ class Game:
                                              'rank_place': self.players[player]['rank_place'],
                                              'auto_clickers': self.players[player]['auto_clickers']}})
         self.db.gn.update({}, {'$set': {'GN': self.global_num}})
+        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
 
     def on_click(self, player, message):
         if not (player in self.players.keys()):
