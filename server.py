@@ -20,8 +20,17 @@ class Game:
         self.global_num = self.db.gn.find_one({}, {'_id': 0})['GN']
         self.players = {}
         self.players_not_logged = []
+        self.messages = {
+            'login': self.login,
+            'click': self.on_click,
+            'register': self.register
+        }
+        self.click_types = {
+            'factory': 10,
+            'human': 1
+        }
         # Через определённый промежуток времени запускает функцию из второго аргумента.
-        tornado.ioloop.IOLoop.instance().call_later(600, self.save)
+        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
 
     def _send_all(self, json, exclude=None):
         # рассылка сообщений всем игрокам.
@@ -37,30 +46,8 @@ class Game:
         В зависимости от ключа, реагирует на сообщение и отвечает игроку.
         """
         global log
-        log += json.dumps(message) + '\n'
-        if message["key"] == "register":
-            self.register(player, message['login'])
-        if message['key'] == 'login':
-            self.login(player, message['login'])
-        if message['key'] == 'click':
-            if not (player in self.players.keys()):
-                player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
-                return
-            self.global_num -= 1*self.players[player]['multiplier']
-            self.players[player]['clicks'] += 1*self.players[player]['multiplier']
-            if (self.db.players.find_one({'rank_place': self.players[player]['rank_place'] - 1})) \
-                    and self.players[player]['clicks'] > self.db.players.find_one(
-                        {'rank_place': self.players[player]['rank_place'] - 1})['clicks']:
-                self.db.players.update(
-                    {'rank_place': self.players[player]['rank_place'] - 1},
-                    {'$set': {'rank_place': self.players[player]['rank_place']}})
-                self.players[player]['rank_place'] -= 1
-                self.db.players.update({'login': self.players[player]['login']},
-                                       {'$set': {'rank_place': self.players[player]['rank_place']}})
-            player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
-                                             'clicks': self.players[player]['clicks'],
-                                             'rank_place': self.players[player]['rank_place']}))
-            self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
+        log += 'received message: ' + json.dumps(message) + '\n'
+        self.messages.get(message['key'], self.bad_key)(player, message)
 
     def connect(self, player):
         """
@@ -79,42 +66,86 @@ class Game:
         """
         if player in self.players_not_logged:
             self.players_not_logged.remove(player)
-        self.db.players.update({'login': self.players[player]['login']},
-                               {'$set':  {'clicks': self.players[player]['clicks']}})
-        self.players.pop(player)
+        if player in self.players.keys():
+            self.db.players.update({'login': self.players[player]['login']},
+                                   {'$set':  {'clicks': self.players[player]['clicks'],
+                                              'rank_place': self.players[player]['rank_place']}})
+            self.players.pop(player)
         global log
         log += 'player disconnected\n'
 
-    def register(self, player_wsh, login):
+    def register(self, player_wsh, message):
         """
         Регистрирует игрока в системе. Если уже есть пользователь с таким логином, возвращает игроку сообщение с ошибкой
         :param player_wsh: WS игрока
-        :param login: отправленный с запросом на регистрацию игроком логин.
+        :param message: сообщение с данными об игроке
         """
+        if self.db.players.find_one({'mail': message['mail']}):
+            player_wsh.write_message(json.dumps({'key': 'error', 'type': 'user already exists'}))
         self.players_not_logged.remove(player_wsh)
-        if self.db.players.find_one({'login': login}) != 'null':
-            player_wsh.write_message(json.dumps({'key': 'error', 'type': 'this user already exists'}))
-            return
-        player = {'login': login, 'clicks': 0, 'multiplier': 1}
+        player = {'login': message['login'], 'clicks': 0, 'multiplier': 1,
+                  'rank_place': self.db.players.find().count() + 1,
+                  'mail': message['mail'], 'auto_clickers': []}
         self.players[player_wsh] = player
-        player_wsh.write_message(json.dumps({'key': 'success', 'type': 'register', 'GN': self.global_num, 'clicks': 0}))
+        self.db.players.insert_one(player)
+        player_wsh.write_message(json.dumps({'key': 'success', 'type': 'register', 'GN': self.global_num, 'clicks': 0,
+                                             'rank_place': self.players[player_wsh]['rank_place'],
+                                             'auto_clickers': []}))
 
-    def login(self, player_wsh, login):
+    def login(self, player_wsh, message):
         """
         Загружает информацию об игроке из БД.
+        Если его там нет, регистрирует.
         """
-        player = self.db.players.find_one({'login': login}, {'_id': 0})
+        mail = message['mail']
+        if not self.db.players.find_one({'mail': mail}, {'_id': 0}):
+            player_wsh.write_message(json.dumps({'key': 'error', 'type': 'you are not registered'}))
+        player = self.db.players.find_one({'mail': mail}, {'_id': 0})
         self.players[player_wsh] = player
         player_wsh.write_message(json.dumps({'key': 'success', 'type': 'login', 'GN': self.global_num,
-                                             'clicks': self.players[player_wsh]['clicks']}))
+                                             'clicks': self.players[player_wsh]['clicks'],
+                                             'login': self.players[player_wsh]['login'],
+                                             'auto_clickers': self.players[player_wsh]['auto_clickers']}))
 
     def save(self):
         with open('log.txt', 'w') as f:
             f.write(log)
         for player in self.players.keys():
             self.db.players.update({'login': self.players[player]['login']},
-                                   {'$set': {'clicks': self.players[player]['clicks']}})
+                                   {'$set': {'clicks': self.players[player]['clicks'],
+                                             'rank_place': self.players[player]['rank_place'],
+                                             'auto_clickers': self.players[player]['auto_clickers']}})
         self.db.gn.update({}, {'$set': {'GN': self.global_num}})
+
+    def on_click(self, player, message):
+        if not (player in self.players.keys()):
+            player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
+            return
+        self.global_num -= self.click_types[message['type']] * self.players[player]['multiplier']
+        self.players[player]['clicks'] += self.click_types[message['type']] * self.players[player]['multiplier']
+        if '"rank_place": %s' % self.players[player]['rank_place'] in self.players.items().__repr__():
+            for player_wsh in self.players.keys():
+                if (self.players[player_wsh]['rank_place'] - 1) == self.players[player]['rank_place']:
+                    self.players[player_wsh]['rank_place'] += 1
+                    self.players[player]['rank_place'] -= 1
+                    player_wsh.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
+                                                         'clicks': self.players[player_wsh]['clicks'],
+                                                         'rank_place': self.players[player_wsh]['rank_place']}))
+                    break
+        elif (self.db.players.find_one({'rank_place': self.players[player]['rank_place'] - 1})) \
+                and self.players[player]['clicks'] > self.db.players.find_one(
+                    {'rank_place': self.players[player]['rank_place'] - 1})['clicks']:
+            self.db.players.update(
+                {'rank_place': self.players[player]['rank_place'] - 1},
+                {'$set': {'rank_place': self.players[player]['rank_place']}})
+            self.players[player]['rank_place'] -= 1
+        player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
+                                         'clicks': self.players[player]['clicks'],
+                                         'rank_place': self.players[player]['rank_place']}))
+        self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
+
+    def bad_key(self, player, *args):
+        player.write_message(json.dumps({'key': 'error', 'type': 'bad key'}))
 
 
 class Application(tornado.web.Application):
