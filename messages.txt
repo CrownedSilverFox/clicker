@@ -3,16 +3,19 @@
 Ответ:
     {"key": "success", "type": "connect"}
 Запрос:
-    {"key": "register", "login": логин, "password": пароль}
+    {"key": "login", "login": логин, 'id': гуголь айди лузера}
 Ответ:
-    {"key": "success", "type": "register"}
-    или {'key': 'error', 'type': 'this user already exists'}
+    {'key': 'success', 'type': 'login', 'GN': GN,
+                                             'clicks': кол-вл кликов лузера,
+                                             'rank_place': место лузера в его жизни,
+                                             'auto_clickers': фактории и прочее лузера}
+    или {'key': 'success', 'type': 'register', 'GN': GN,
+                                             'clicks': кол-вл кликов лузера,
+                                             'rank_place': количество лузеров + 1,
+                                             'auto_clickers': фактории и прочее лузера}
 Запрос:
-    {"key": "login", "login": логин, "password": пароль}
-Ответ:
-    {'key': 'success', 'type': 'login'}
-    или {'key': 'error', 'type': 'wrong login or password'}
-Запрос:
-    {"key": "click"}
+    {"key": "click", 'type': 'human'/'factory'}
 Ответ:
     {'key': 'GN', 'GN': глобальное число оставшихся кликов}, отсылается всем подключенным игрокам.
+    {'key': 'click', 'GN': self.global_num, 'clicks': клики лузера,
+                                         'rank_place': номер норы лузера}

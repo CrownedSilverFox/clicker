@@ -23,7 +23,6 @@ class Game:
         self.messages = {
             'login': self.login,
             'click': self.on_click,
-            'register': self.register
         }
         self.click_types = {
             'factory': 10,
@@ -67,7 +66,7 @@ class Game:
         if player in self.players_not_logged:
             self.players_not_logged.remove(player)
         if player in self.players.keys():
-            self.db.players.update({'login': self.players[player]['login']},
+            self.db.players.update({'id': self.players[player]['id']},
                                    {'$set':  {'clicks': self.players[player]['clicks'],
                                               'rank_place': self.players[player]['rank_place']}})
             self.players.pop(player)
@@ -80,12 +79,10 @@ class Game:
         :param player_wsh: WS игрока
         :param message: сообщение с данными об игроке
         """
-        if self.db.players.find_one({'mail': message['mail']}):
-            player_wsh.write_message(json.dumps({'key': 'error', 'type': 'user already exists'}))
         self.players_not_logged.remove(player_wsh)
         player = {'login': message['login'], 'clicks': 0, 'multiplier': 1,
                   'rank_place': self.db.players.find().count() + 1,
-                  'mail': message['mail'], 'auto_clickers': []}
+                  'id': message['id'], 'auto_clickers': []}
         self.players[player_wsh] = player
         self.db.players.insert_one(player)
         player_wsh.write_message(json.dumps({'key': 'success', 'type': 'register', 'GN': self.global_num, 'clicks': 0,
@@ -97,21 +94,21 @@ class Game:
         Загружает информацию об игроке из БД.
         Если его там нет, регистрирует.
         """
-        mail = message['mail']
-        if not self.db.players.find_one({'mail': mail}, {'_id': 0}):
-            player_wsh.write_message(json.dumps({'key': 'error', 'type': 'you are not registered'}))
-        player = self.db.players.find_one({'mail': mail}, {'_id': 0})
+        player_id = message['id']
+        if not self.db.players.find_one({'id': player_id}, {'_id': 0}):
+            self.register(player_wsh, message)
+        player = self.db.players.find_one({'id': player_id}, {'_id': 0})
         self.players[player_wsh] = player
         player_wsh.write_message(json.dumps({'key': 'success', 'type': 'login', 'GN': self.global_num,
                                              'clicks': self.players[player_wsh]['clicks'],
-                                             'login': self.players[player_wsh]['login'],
+                                             'rank_place': self.players[player_wsh]['rank_place'],
                                              'auto_clickers': self.players[player_wsh]['auto_clickers']}))
 
     def save(self):
         with open('log.txt', 'w') as f:
             f.write(log)
         for player in self.players.keys():
-            self.db.players.update({'login': self.players[player]['login']},
+            self.db.players.update({'id': self.players[player]['id']},
                                    {'$set': {'clicks': self.players[player]['clicks'],
                                              'rank_place': self.players[player]['rank_place'],
                                              'auto_clickers': self.players[player]['auto_clickers']}})
@@ -126,7 +123,8 @@ class Game:
         self.players[player]['clicks'] += self.click_types[message['type']] * self.players[player]['multiplier']
         if '"rank_place": %s' % self.players[player]['rank_place'] in self.players.items().__repr__():
             for player_wsh in self.players.keys():
-                if (self.players[player_wsh]['rank_place'] - 1) == self.players[player]['rank_place']:
+                if (self.players[player_wsh]['rank_place'] - 1) == self.players[player]['rank_place'] and \
+                                self.players[player_wsh]['clicks'] < self.players[player]['clicks']:
                     self.players[player_wsh]['rank_place'] += 1
                     self.players[player]['rank_place'] -= 1
                     player_wsh.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
