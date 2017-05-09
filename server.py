@@ -6,6 +6,8 @@ import tornado.web
 import socket
 import json
 import pymongo
+import time
+from threading import Thread
 
 log = ''
 
@@ -28,8 +30,10 @@ class Game:
             'factory': 10,
             'human': 1
         }
-        # Через определённый промежуток времени запускает функцию из второго аргумента.
-        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
+        # Запускает в отдельном потоке работу с БД
+        self.run = True
+        self.update_thread = Thread(target=self.update)
+        self.update_thread.start()
 
     def _send_all(self, json, exclude=None):
         # рассылка сообщений всем игрокам.
@@ -67,8 +71,8 @@ class Game:
             self.players_not_logged.remove(player)
         if player in self.players.keys():
             self.db.players.update({'id': self.players[player]['id']},
-                                   {'$set':  {'clicks': self.players[player]['clicks'],
-                                              'rank_place': self.players[player]['rank_place']}})
+                                   {'$set': {'clicks': self.players[player]['clicks'],
+                                             'rank_place': self.players[player]['rank_place']}})
             self.players.pop(player)
         global log
         log += 'player disconnected\n'
@@ -104,44 +108,37 @@ class Game:
                                              'rank_place': self.players[player_wsh]['rank_place'],
                                              'auto_clickers': self.players[player_wsh]['auto_clickers']}))
 
-    def save(self):
-        with open('log.txt', 'w') as f:
-            f.write(log)
-        for player in self.players.keys():
-            self.db.players.update({'id': self.players[player]['id']},
-                                   {'$set': {'clicks': self.players[player]['clicks'],
-                                             'rank_place': self.players[player]['rank_place'],
-                                             'auto_clickers': self.players[player]['auto_clickers']}})
-        self.db.gn.update({}, {'$set': {'GN': self.global_num}})
-        tornado.ioloop.IOLoop.instance().call_later(60, self.save)
+    def update(self):
+        while self.run:
+            with open('log.txt', 'w') as f:
+                f.write(log)
+            for player in self.players.keys():
+                self.db.players.update({'id': self.players[player]['id']},
+                                       {'$set': {'clicks': self.players[player]['clicks'],
+                                                 'rank_place': self.players[player]['rank_place'],
+                                                 'auto_clickers': self.players[player]['auto_clickers']}})
+            clicks_list = list(set([clicks['clicks'] for clicks in self.db.players.find({}, {'clicks': 1, '_id': 0})]))
+            clicks_list.sort(reverse=True)
+            for num, clicks in enumerate(clicks_list, 1):
+                self.db.players.update({'clicks': clicks}, {'$set': {'rank_place': num}})
+            for player in self.players.keys():
+                self.players[player] = self.db.players.find_one({'id': self.players[player]['id']})
+            self.db.gn.update({}, {'$set': {'GN': self.global_num}})
+            time.sleep(10)
 
     def on_click(self, player, message):
         if not (player in self.players.keys()):
             player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
             return
-        self.global_num -= self.click_types[message['type']] * self.players[player]['multiplier']
-        self.players[player]['clicks'] += self.click_types[message['type']] * self.players[player]['multiplier']
-        if '"rank_place": %s' % self.players[player]['rank_place'] in self.players.items().__repr__():
-            for player_wsh in self.players.keys():
-                if (self.players[player_wsh]['rank_place'] - 1) == self.players[player]['rank_place'] and \
-                                self.players[player_wsh]['clicks'] < self.players[player]['clicks']:
-                    self.players[player_wsh]['rank_place'] += 1
-                    self.players[player]['rank_place'] -= 1
-                    player_wsh.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
-                                                         'clicks': self.players[player_wsh]['clicks'],
-                                                         'rank_place': self.players[player_wsh]['rank_place']}))
-                    break
-        elif (self.db.players.find_one({'rank_place': self.players[player]['rank_place'] - 1})) \
-                and self.players[player]['clicks'] > self.db.players.find_one(
-                    {'rank_place': self.players[player]['rank_place'] - 1})['clicks']:
-            self.db.players.update(
-                {'rank_place': self.players[player]['rank_place'] - 1},
-                {'$set': {'rank_place': self.players[player]['rank_place']}})
-            self.players[player]['rank_place'] -= 1
-        player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
-                                         'clicks': self.players[player]['clicks'],
-                                         'rank_place': self.players[player]['rank_place']}))
-        self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
+        if self.players[player].get('run', True):
+            self.global_num -= self.click_types[message['type']] * self.players[player]['multiplier']
+            self.players[player]['clicks'] += self.click_types[message['type']] * self.players[player]['multiplier']
+            player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
+                                             'clicks': self.players[player]['clicks']}))
+            self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
+            # self.players[player]['run'] = False
+            # time.sleep(1)
+            # self.players[player]['run'] = True
 
     def bad_key(self, player, *args):
         player.write_message(json.dumps({'key': 'error', 'type': 'bad key'}))
