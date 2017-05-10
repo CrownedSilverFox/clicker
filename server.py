@@ -125,7 +125,9 @@ class Game:
                 self.players[player] = self.db.players.find_one({'id': self.players[player]['id']})
             self.db.gn.update({}, {'$set': {'GN': self.global_num}})
             for player in self.players.keys():
-                player.write_message(json.dumps("key": "rank", db.players.find_one({"id": self.players[player]["id"]})["rank_place"])
+               rank = db.players.find_one({"id": self.players[player]["id"]})
+               rank = rank["rank_place"]
+               player.write_message(json.dumps("key": "rank", "rank_place": )
             time.sleep(10)
 
     def on_click(self, player, message):
