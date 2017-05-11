@@ -125,9 +125,10 @@ class Game:
                 self.players[player] = self.db.players.find_one({'id': self.players[player]['id']})
             self.db.gn.update({}, {'$set': {'GN': self.global_num}})
             for player in self.players.keys():
-               rank = db.players.find_one({"id": self.players[player]["id"]})
-               rank = rank["rank_place"]
-               player.write_message(json.dumps("key": "rank", "rank_place": )
+                player.write_message(json.dumps({"key": "rank",
+                                                 "rank_place":
+                                                     self.db.players.find_one(
+                                                         {"id": self.players[player]["id"]})['rank_place']}))
             time.sleep(10)
 
     def on_click(self, player, message):
@@ -140,9 +141,6 @@ class Game:
             player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
                                              'clicks': self.players[player]['clicks']}))
             self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
-            # self.players[player]['run'] = False
-            # time.sleep(1)
-            # self.players[player]['run'] = True
 
     def bad_key(self, player, *args):
         player.write_message(json.dumps({'key': 'error', 'type': 'bad key'}))
