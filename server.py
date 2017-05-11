@@ -8,6 +8,7 @@ import json
 import pymongo
 import time
 from threading import Thread
+from datetime import datetime, timedelta
 
 log = ''
 
@@ -30,6 +31,7 @@ class Game:
             'factory': 10,
             'human': 1
         }
+        self.delta = timedelta(milliseconds=50)
         # Запускает в отдельном потоке работу с БД
         self.run = True
         self.update_thread = Thread(target=self.update)
@@ -135,12 +137,15 @@ class Game:
         if not (player in self.players.keys()):
             player.write_message(json.dumps({'key': 'error', 'type': 'you are not logged in'}))
             return
-        if self.players[player].get('run', True):
-            self.global_num -= self.click_types[message['type']] * self.players[player]['multiplier']
-            self.players[player]['clicks'] += self.click_types[message['type']] * self.players[player]['multiplier']
-            player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
-                                             'clicks': self.players[player]['clicks']}))
-            self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
+        if self.players[player].get('time', False):
+            if (datetime.now() - self.delta) < (self.players[player]['time']):
+                return
+        self.players[player]['time'] = datetime.now()
+        self.global_num -= self.click_types[message['type']] * self.players[player]['multiplier']
+        self.players[player]['clicks'] += self.click_types[message['type']] * self.players[player]['multiplier']
+        player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
+                                         'clicks': self.players[player]['clicks']}))
+        self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
 
     def bad_key(self, player, *args):
         player.write_message(json.dumps({'key': 'error', 'type': 'bad key'}))
@@ -150,13 +155,14 @@ class Application(tornado.web.Application):
     def __init__(self):
         self.game = Game()
         handlers = [
-            (r'/websocket', WSHandler),
+            (r'/websocket', PlayersHandler),
+            (r'/google_api', GoogleHandler)
         ]
 
         tornado.web.Application.__init__(self, handlers)
 
 
-class WSHandler(tornado.websocket.WebSocketHandler):
+class PlayersHandler(tornado.websocket.WebSocketHandler):
     def open(self):
         self.application.game.connect(self)
 
@@ -171,6 +177,11 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
     def check_origin(self, origin):
         return True
+
+
+class GoogleHandler(tornado.web.RequestHandler):
+    def get(self, *args, **kwargs):
+        pass
 
 
 application = Application()
