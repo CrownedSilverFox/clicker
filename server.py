@@ -26,6 +26,7 @@ class Game:
         self.messages = {
             'login': self.login,
             'click': self.on_click,
+            'buy_check': self.buy_check
         }
         self.click_types = {
             'factory': 10,
@@ -149,6 +150,29 @@ class Game:
 
     def bad_key(self, player, *args):
         player.write_message(json.dumps({'key': 'error', 'type': 'bad key'}))
+
+    def buy_check(self, player, message):
+        from oauth2client.service_account import ServiceAccountCredentials
+        from apiclient.discovery import build
+        from apiclient.errors import HttpError
+        import httplib2
+        package_name, product_id, token = message['package_name'], message['product_id'], message['token']
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            'client_secret.json',
+            ['https://www.googleapis.com/auth/androidpublisher'])
+
+        http = httplib2.Http()
+        http = credentials.authorize(http)
+        service = build(serviceName="androidpublisher", version="v1.1", http=http)
+        try:
+            result = service.inapppurchases().get(packageName=package_name,
+                                                  productId=product_id, token=token).execute(http=http)
+        except HttpError:
+            player.write_message(json.dumps({'key': 'buy', 'purchase': 'error'}))
+        else:
+            player.write_message(json.dumps({'key': 'buy', 'purchase': 'success'}))
+
+
 
 
 class Application(tornado.web.Application):
