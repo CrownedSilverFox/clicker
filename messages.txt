@@ -19,3 +19,8 @@
     {'key': 'GN', 'GN': глобальное число оставшихся кликов}, отсылается всем подключенным игрокам.
     {'key': 'click', 'GN': self.global_num, 'clicks': клики лузера,
                                          'rank_place': номер норы лузера}
+Запрос:
+    {"key": 'buy_check', 'product_id': ..., 'package_name': ..., 'token': ...}
+Ответ:
+    {'key': 'buy_check', 'purchase': 'success'}
+    или {'key': 'buy', 'purchase': 'error'}

@@ -70,6 +70,8 @@ class Game:
         """
         Отключение игрока
         """
+        global log
+        log += 'player disconnected: %s\n' % self.players[player]['login']
         if player in self.players_not_logged:
             self.players_not_logged.remove(player)
         if player in self.players.keys():
@@ -77,8 +79,6 @@ class Game:
                                    {'$set': {'clicks': self.players[player]['clicks'],
                                              'rank_place': self.players[player]['rank_place']}})
             self.players.pop(player)
-        global log
-        log += 'player disconnected\n'
 
     def register(self, player_wsh, message):
         """
@@ -173,14 +173,11 @@ class Game:
             player.write_message(json.dumps({'key': 'buy', 'purchase': 'success'}))
 
 
-
-
 class Application(tornado.web.Application):
     def __init__(self):
         self.game = Game()
         handlers = [
             (r'/websocket', PlayersHandler),
-            (r'/google_api', GoogleHandler)
         ]
 
         tornado.web.Application.__init__(self, handlers)
@@ -201,11 +198,6 @@ class PlayersHandler(tornado.websocket.WebSocketHandler):
 
     def check_origin(self, origin):
         return True
-
-
-class GoogleHandler(tornado.web.RequestHandler):
-    def get(self, *args, **kwargs):
-        pass
 
 
 application = Application()
