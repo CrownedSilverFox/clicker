@@ -142,8 +142,8 @@ class Game:
             if (datetime.now() - self.delta) < (self.players[player]['time']):
                 return
         self.players[player]['time'] = datetime.now()
-        self.global_num -= self.click_types[message['type']] * self.players[player]['multiplier']
-        self.players[player]['clicks'] += self.click_types[message['type']] * self.players[player]['multiplier']
+        self.global_num -= 1 * self.players[player]['multiplier']
+        self.players[player]['clicks'] += 1 * self.players[player]['multiplier']
         player.write_message(json.dumps({'key': 'click', 'GN': self.global_num,
                                          'clicks': self.players[player]['clicks']}))
         self._send_all(json.dumps({'key': 'GN', 'GN': self.global_num}), exclude=player)
