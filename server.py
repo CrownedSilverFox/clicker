@@ -156,7 +156,7 @@ class Game:
         from apiclient.discovery import build
         from apiclient.errors import HttpError
         import httplib2
-        package_name, product_id, token = message['package_name'], message['product_id'], message['token']
+        package_name, product_id, token = message['packageName'], message['productId'], message['purchaseToken']
         credentials = ServiceAccountCredentials.from_json_keyfile_name(
             'client_secret.json',
             ['https://www.googleapis.com/auth/androidpublisher'])
