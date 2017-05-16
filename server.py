@@ -6,7 +6,6 @@ import tornado.web
 import socket
 import json
 import pymongo
-import time
 from threading import Thread
 from datetime import datetime, timedelta
 
@@ -34,9 +33,8 @@ class Game:
         }
         self.delta = timedelta(milliseconds=50)
         # Запускает в отдельном потоке работу с БД
-        self.run = True
-        self.update_thread = Thread(target=self.update)
-        self.update_thread.start()
+        self.updating = tornado.ioloop.PeriodicCallback(self.update, 10000)
+        self.updating.start()
 
     def _send_all(self, json, exclude=None):
         # рассылка сообщений всем игрокам.
@@ -112,7 +110,7 @@ class Game:
                                              'auto_clickers': self.players[player_wsh]['auto_clickers']}))
 
     def update(self):
-        while self.run:
+        def work():
             with open('log.txt', 'w') as f:
                 f.write(log)
             for player in self.players.keys():
@@ -132,7 +130,8 @@ class Game:
                                                  "rank_place":
                                                      self.db.players.find_one(
                                                          {"id": self.players[player]["id"]})['rank_place']}))
-            time.sleep(10)
+        th = Thread(target=work)
+        th.start()
 
     def on_click(self, player, message):
         if not (player in self.players.keys()):
