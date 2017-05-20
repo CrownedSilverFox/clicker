@@ -182,7 +182,7 @@ class Game:
         message = b64decode(message)
         err = None
         dec_message = str(self.cipher.decrypt(message, err).decode(encoding='utf-8'))
-        print(dec_message)
+        print(repr(dec_message))
         dec_message = json.loads(dec_message)
         return dec_message
 
