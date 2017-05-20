@@ -181,7 +181,9 @@ class Game:
     def decrypt(self, message):
         message = b64decode(message)
         err = None
-        dec_message = json.loads(str(self.cipher.decrypt(message, err).decode(encoding='utf-8')))
+        dec_message = str(self.cipher.decrypt(message, err).decode(encoding='utf-8'))
+        print(dec_message)
+        dec_message = json.loads(dec_message)
         return dec_message
 
 
