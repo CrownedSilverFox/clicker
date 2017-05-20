@@ -55,6 +55,7 @@ class Game:
         В зависимости от ключа, реагирует на сообщение и отвечает игроку.
         """
         message = self.decrypt(message)
+        print('received message: ' + json.dumps(message))
         global log
         log += 'received message: ' + json.dumps(message) + '\n'
         self.messages.get(message['key'], self.bad_key)(player, message)
@@ -180,7 +181,7 @@ class Game:
     def decrypt(self, message):
         message = b64decode(message)
         err = None
-        dec_message = self.cipher.decrypt(message, err).decode()
+        dec_message = json.loads(self.cipher.decrypt(message, err).decode())
         return dec_message
 
 
@@ -199,8 +200,6 @@ class PlayersHandler(tornado.websocket.WebSocketHandler):
         self.application.game.connect(self)
 
     def on_message(self, message):
-        message = json.loads(message, encoding='utf-8')
-        print("WSHandler Received message: {}".format(message))
         self.application.game.received_message(self, message)
 
     def on_close(self):
