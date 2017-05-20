@@ -8,6 +8,9 @@ import json
 import pymongo
 from threading import Thread
 from datetime import datetime, timedelta
+from Crypto.Cipher import PKCS1_v1_5
+from Crypto.PublicKey import RSA
+from base64 import b64decode
 
 log = ''
 
@@ -35,6 +38,8 @@ class Game:
         # Запускает в отдельном потоке работу с БД
         self.updating = tornado.ioloop.PeriodicCallback(self.update, 10000)
         self.updating.start()
+        with open('private_key', 'rb') as f:
+            self.cipher = PKCS1_v1_5.new(RSA.importKey(f.read()))
 
     def _send_all(self, json, exclude=None):
         # рассылка сообщений всем игрокам.
@@ -46,9 +51,10 @@ class Game:
     def received_message(self, player, message):
         """
         Реакция на сообщение от игрока. 
-        Принимает сообщение формата {"key": "...", ...}
+        Принимает зашифрованное сообщение формата {"key": "...", ...}
         В зависимости от ключа, реагирует на сообщение и отвечает игроку.
         """
+        message = self.decrypt(message)
         global log
         log += 'received message: ' + json.dumps(message) + '\n'
         self.messages.get(message['key'], self.bad_key)(player, message)
@@ -170,6 +176,12 @@ class Game:
             player.write_message(json.dumps({'key': 'buy', 'purchase': 'error'}))
         else:
             player.write_message(json.dumps({'key': 'buy', 'purchase': 'success'}))
+
+    def decrypt(self, message):
+        message = b64decode(message)
+        err = None
+        dec_message = self.cipher.decrypt(message, err).decode()
+        return dec_message
 
 
 class Application(tornado.web.Application):
