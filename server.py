@@ -179,6 +179,7 @@ class Game:
             player.write_message(json.dumps({'key': 'buy', 'purchase': 'success'}))
 
     def decrypt(self, message):
+        print(message)
         message = b64decode(message)
         err = None
         dec_message = str(self.cipher.decrypt(message, err).decode()).replace("'", '"')
